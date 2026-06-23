@@ -2,7 +2,7 @@
   "name": "eduinuk-triage",
   "version": "0.1.0",
   "private": true,
- "scripts": {
+  "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
@@ -13,9 +13,11 @@
     "@hookform/resolvers": "^5.4.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@tanstack/react-query": "^5.101.1",
     "@types/pg": "^8.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dotenv": "^17.4.2",
     "lucide-react": "^1.21.0",
     "next": "16.2.9",
     "openai": "^6.44.0",

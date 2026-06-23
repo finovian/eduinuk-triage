@@ -7,14 +7,7 @@ import type {
 import type { Prisma, CaseStatus } from "@prisma/client";
 
 
-// Urgency sort helper 
 
-const URGENCY_ORDER: Record<string, number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
-};
 
 // persistCase 
 
@@ -37,13 +30,12 @@ export async function persistCase(
   result: PostCheckResult,
   meta: PersistMeta
 ) {
-  // Check if a student with this email already exists
+
   let student = await prisma.student.findFirst({
     where: { email: request.email },
   });
 
   if (student) {
-    // Update student details with their latest submission information
     student = await prisma.student.update({
       where: { id: student.id },
       data: {
@@ -114,7 +106,6 @@ export async function getCases(filters: CaseFilters = {}) {
     ...(category ? { category } : {}),
     ...(disposition ? { disposition } : {}),
     ...(safeguardingOnly ? { safeguardingFlag: true } : {}),
-    // Hide discarded cases from the default view unless explicitly requested
     ...(!disposition ? { disposition: { not: "discard" } } : {}),
   };
 
@@ -126,7 +117,10 @@ export async function getCases(filters: CaseFilters = {}) {
   const [cases, total] = await prisma.$transaction([
     prisma.case.findMany({
       where,
-      orderBy: [{ createdAt: "desc" }],
+      orderBy: [
+        { triage: { urgency: "asc" } },
+        { createdAt: "desc" }
+      ],
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
@@ -150,21 +144,14 @@ export async function getCases(filters: CaseFilters = {}) {
     disposition: c.triage?.disposition ?? "escalate",
     safeguardingFlag: c.triage?.safeguardingFlag ?? false,
     emergencySupport: c.triage?.emergencySupport ?? false,
-    status: c.status as any, // Cast to any to align with app CaseStatus literal type
+    status: c.status as any,
     assignedTo: c.assignedTo,
     preCheckTriggered: c.triage?.preCheckTriggered ?? false,
     postCheckApplied: c.triage?.postCheckApplied ?? false,
     aiCallSucceeded: c.triage?.aiCallSucceeded ?? false,
   }));
 
-  // Sort in-memory by urgency band, then by createdAt (already ordered from DB)
-  const sorted = [...mapped].sort(
-    (a, b) =>
-      (URGENCY_ORDER[a.urgency] ?? 4) - (URGENCY_ORDER[b.urgency] ?? 4) ||
-      b.createdAt.getTime() - a.createdAt.getTime()
-  );
-
-  return { cases: sorted, total, page, pageSize };
+  return { cases: mapped, total, page, pageSize };
 }
 
 // getCaseById 
@@ -212,7 +199,7 @@ export async function getCaseById(id: string) {
     rawLlmResponse: c.triage?.rawLlmResponse ?? {},
     status: c.status as any,
     assignedTo: c.assignedTo,
-    staffNotes: c.notes[0]?.note ?? null, // Get latest staff note
+    staffNotes: c.notes[0]?.note ?? null,
     resolvedAt: c.resolvedAt,
   };
 }

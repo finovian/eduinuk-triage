@@ -3,6 +3,7 @@ import { Ubuntu, Ubuntu_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 
 /* Fonts  */
 const ubuntuSans = Ubuntu({
@@ -74,10 +75,11 @@ export default function RootLayout({
 
         <SiteHeader />
 
-        <main id="main-content" className="flex-1 flex flex-col">
-          {children}
-        </main>
-
+        <QueryProvider>
+          <main id="main-content" className="flex-1 flex flex-col">
+            {children}
+          </main>
+        </QueryProvider>
 
         <SiteFooter />
       </body>
