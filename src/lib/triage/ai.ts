@@ -2,26 +2,19 @@ import OpenAI from "openai";
 import { TRIAGE_SYSTEM_PROMPT, buildTriageUserMessage } from "./prompt";
 import type { StudentRequest } from "@/types/triage";
 
-// Client singleton
-
-let _client: OpenAI | null = null;
 
 function getClient(): OpenAI {
-  if (!_client) {
-    const apiKey = process.env.AI_API_KEY;
-    if (!apiKey) {
-      throw new AiCallError(
-        "AI_API_KEY environment variable is not set",
-        "config_error"
-      );
-    }
-    _client = new OpenAI({
-      baseURL:
-        process.env.AI_BASE_URL,
-      apiKey,
-    });
+  const apiKey = process.env.AI_API_KEY;
+  if (!apiKey) {
+    throw new AiCallError(
+      "AI_API_KEY environment variable is not set",
+      "config_error"
+    );
   }
-  return _client;
+  return new OpenAI({
+    baseURL: process.env.AI_BASE_URL,
+    apiKey,
+  });
 }
 
 const MODEL = () => process.env.AI_MODEL ?? "gpt-4o-mini";

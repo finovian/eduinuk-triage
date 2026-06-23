@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { CaseStatusBadge } from "@/components/ui/status-badge";
@@ -18,9 +18,10 @@ import {
   ArrowRight,
   ShieldCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from "lucide-react";
-import type { CaseStatus, Urgency, Category, Disposition } from "@/types/triage";
+import { useCases, useDashboardStats } from "@/lib/query";
+import type { CaseStatus, Urgency, Category } from "@/types/triage";
 
 /** Human-readable labels for each status filter tab */
 const STATUS_LABELS: Record<CaseStatus | "ALL", string> = {
@@ -30,40 +31,8 @@ const STATUS_LABELS: Record<CaseStatus | "ALL", string> = {
   resolved: "Resolved",
 };
 
-interface CaseSummary {
-  id: string;
-  createdAt: string;
-  studentName: string;
-  university: string;
-  course: string;
-  yearOfStudy: string;
-  category: Category;
-  urgency: Urgency;
-  disposition: Disposition;
-  safeguardingFlag: boolean;
-  emergencySupport: boolean;
-  status: CaseStatus;
-  assignedTo: string | null;
-  preCheckTriggered: boolean;
-  postCheckApplied: boolean;
-  aiCallSucceeded: boolean;
-}
-
-interface Stats {
-  totalOpen: number;
-  criticalOpen: number;
-  safeguardingOpen: number;
-  resolvedToday: number;
-}
-
 export function DashboardQueue() {
-  const [cases, setCases] = useState<CaseSummary[]>([]);
-  const [total, setTotal] = useState(0);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [statsLoading, setStatsLoading] = useState(true);
-  
-  // Filters
+  //  Filters 
   const [status, setStatus] = useState<CaseStatus | "ALL">("ALL");
   const [urgency, setUrgency] = useState<Urgency | "ALL">("ALL");
   const [category, setCategory] = useState<Category | "ALL">("ALL");
@@ -72,69 +41,34 @@ export function DashboardQueue() {
   const [pageSize] = useState(10);
   const [search, setSearch] = useState("");
 
-  const fetchStats = useCallback(async () => {
-    setStatsLoading(true);
-    try {
-      const res = await fetch("/api/stats");
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch stats:", err);
-    } finally {
-      setStatsLoading(false);
-    }
-  }, []);
-
-  const fetchCases = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (status !== "ALL") params.append("status", status);
-      if (urgency !== "ALL") params.append("urgency", urgency);
-      if (category !== "ALL") params.append("category", category);
-      if (safeguarding) params.append("safeguarding", "true");
-      params.append("page", page.toString());
-      params.append("pageSize", pageSize.toString());
-
-      const res = await fetch(`/api/cases?${params.toString()}`, { signal });
-      if (res.ok) {
-        const data = await res.json();
-        setCases(data.cases);
-        setTotal(data.total);
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        // Ignored: request was aborted
-        return;
-      }
-      console.error("Failed to fetch cases:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [status, urgency, category, safeguarding, page, pageSize]);
-
-  // Fetch stats ONCE on component mount
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  // Fetch cases when filters or page changes, aborting any pending requests
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchCases(controller.signal);
-    return () => {
-      controller.abort();
-    };
-  }, [fetchCases]);
-
-  const handleRefresh = () => {
-    fetchCases();
-    fetchStats();
+  //  TanStack Query 
+  const casesFilters = {
+    ...(status !== "ALL" ? { status } : {}),
+    ...(urgency !== "ALL" ? { urgency } : {}),
+    ...(category !== "ALL" ? { category } : {}),
+    ...(safeguarding ? { safeguardingOnly: true } : {}),
+    page,
+    pageSize,
   };
 
-  // Filter local search for immediate UI responsiveness
+  const {
+    data: casesData,
+    isLoading: casesLoading,
+    isFetching: casesFetching,
+    refetch: refetchCases,
+  } = useCases(casesFilters);
+
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    refetch: refetchStats,
+  } = useDashboardStats();
+
+  //  Derived 
+  const cases = casesData?.cases ?? [];
+  const total = casesData?.total ?? 0;
+
+  // Client-side search applied on top of already-filtered server results
   const filteredCases = cases.filter(
     (c) =>
       c.studentName.toLowerCase().includes(search.toLowerCase()) ||
@@ -142,6 +76,16 @@ export function DashboardQueue() {
       c.course.toLowerCase().includes(search.toLowerCase()) ||
       c.id.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleRefresh = () => {
+    refetchCases();
+    refetchStats();
+  };
+
+  const handleStatusChange = (s: CaseStatus | "ALL") => {
+    setStatus(s);
+    setPage(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -232,7 +176,13 @@ export function DashboardQueue() {
       <Card className="border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
         <CardHeader className="pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/20">
           <div>
-            <CardTitle className="text-lg font-bold">Inquiry Response Queue</CardTitle>
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              Inquiry Response Queue
+              {/* Background refetch indicator — subtle spinner when data is being silently refreshed */}
+              {casesFetching && !casesLoading && (
+                <Loader2 className="size-3.5 text-zinc-400 animate-spin" aria-label="Refreshing..." />
+              )}
+            </CardTitle>
             <CardDescription className="text-xs">
               Review and manage incoming student cases. Urgent issues are pinned to the top of the queue.
             </CardDescription>
@@ -257,10 +207,7 @@ export function DashboardQueue() {
               {(["ALL", "new", "in_progress", "resolved"] as const).map((s) => (
                 <button
                   key={s}
-                  onClick={() => {
-                    setStatus(s);
-                    setPage(1);
-                  }}
+                  onClick={() => handleStatusChange(s)}
                   className={`px-3 py-1 text-xs font-semibold rounded-md cursor-pointer transition-colors ${
                     status === s
                       ? "bg-white dark:bg-zinc-800 shadow-xs text-zinc-900 dark:text-zinc-50 border border-zinc-200/50 dark:border-zinc-700/50"
@@ -338,7 +285,7 @@ export function DashboardQueue() {
 
         {/* Cases List */}
         <div className="overflow-x-auto w-full">
-          {loading ? (
+          {casesLoading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 className="size-8 text-emerald-500 animate-spin" />
               <p className="text-xs text-zinc-400 font-medium">Loading queue items...</p>
@@ -405,10 +352,10 @@ export function DashboardQueue() {
                         {c.category.replace("_", " ")}
                       </td>
                       <td className="py-3 px-4">
-                        <Badge variant={c.urgency}>{c.urgency}</Badge>
+                        <Badge variant={c.urgency as any}>{c.urgency}</Badge>
                       </td>
                       <td className="py-3 px-4">
-                        <Badge variant={c.disposition}>{c.disposition}</Badge>
+                        <Badge variant={c.disposition as any}>{c.disposition}</Badge>
                       </td>
                       <td className="py-3 px-4">
                         <CaseStatusBadge status={c.status} />

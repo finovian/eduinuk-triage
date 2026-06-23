@@ -75,11 +75,13 @@ export async function runTriage(
     postChecked = applyPostChecks(hardcoded, zeroFlags);
   } else {
     // Step 2: AI call
+    preCheckTriggered = preCheck.flags.possibleVisa || preCheck.flags.possibleInjection;
     let rawResponse: string;
     let rawJson: unknown;
 
     try {
       rawResponse = await callAI(request);
+
       aiCallSucceeded = true;
     } catch (err) {
       const reason =
@@ -89,11 +91,11 @@ export async function runTriage(
       const failureResult = buildAiFailureResult(reason);
       const caseRecord = await persistCase(request, failureResult, {
         modelUsed: process.env.AI_MODEL ?? "gpt-4o-mini",
-        preCheckTriggered: false,
+        preCheckTriggered,
         aiCallSucceeded: false,
         rawLlmResponse: { error: reason },
       });
-      return { ...failureResult, caseId: caseRecord.id, preCheckTriggered: false, aiCallSucceeded: false };
+      return { ...failureResult, caseId: caseRecord.id, preCheckTriggered, aiCallSucceeded: false };
     }
 
     //  Step 3: Parse + Validate
@@ -105,11 +107,11 @@ export async function runTriage(
       const failureResult = buildAiFailureResult(reason);
       const caseRecord = await persistCase(request, failureResult, {
         modelUsed: process.env.AI_MODEL ?? "gpt-4o-mini",
-        preCheckTriggered: false,
+        preCheckTriggered,
         aiCallSucceeded: true,
-        rawLlmResponse: { raw: rawResponse.slice(0, 1000) },
+        rawLlmResponse: { raw: rawResponse.slice(0, 2000) },
       });
-      return { ...failureResult, caseId: caseRecord.id, preCheckTriggered: false, aiCallSucceeded: true };
+      return { ...failureResult, caseId: caseRecord.id, preCheckTriggered, aiCallSucceeded: true };
     }
 
     const parsed = TriageResponseSchema.safeParse(rawJson);
@@ -119,11 +121,11 @@ export async function runTriage(
       const failureResult = buildAiFailureResult(reason);
       const caseRecord = await persistCase(request, failureResult, {
         modelUsed: process.env.AI_MODEL ?? "gpt-4o-mini",
-        preCheckTriggered: false,
+        preCheckTriggered,
         aiCallSucceeded: true,
         rawLlmResponse: rawJson as Record<string, unknown>,
       });
-      return { ...failureResult, caseId: caseRecord.id, preCheckTriggered: false, aiCallSucceeded: true };
+      return { ...failureResult, caseId: caseRecord.id, preCheckTriggered, aiCallSucceeded: true };
     }
 
     // Step 4: Post-checks (final authority) 
@@ -132,7 +134,7 @@ export async function runTriage(
     // Persist to DB
     const caseRecord = await persistCase(request, postChecked, {
       modelUsed: process.env.AI_MODEL ?? "gpt-4o-mini",
-      preCheckTriggered: false,
+      preCheckTriggered,
       aiCallSucceeded: true,
       rawLlmResponse: rawJson as Record<string, unknown>,
     });
@@ -140,7 +142,7 @@ export async function runTriage(
     return {
       ...postChecked,
       caseId: caseRecord.id,
-      preCheckTriggered: false,
+      preCheckTriggered,
       aiCallSucceeded: true,
     };
   }

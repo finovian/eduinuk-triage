@@ -60,8 +60,6 @@ export const StudentRequestSchema = z.object({
 });
 
 // 2. AI model output 
-// This schema validates what the model returns. Post-checks have final authority
-// and may override fields after validation passes.
 
 export const TriageResponseSchema = z.object({
   category: CategoryEnum,
@@ -85,8 +83,6 @@ export const CaseUpdateSchema = z.object({
 });
 
 // 4. API response 
-// Only these fields are ever returned from POST /api/triage.
-// reasoning, staffSummary, rawLlmResponse are intentionally excluded.
 
 export const TriageApiResponseSchema = z.object({
   caseId: z.string(),

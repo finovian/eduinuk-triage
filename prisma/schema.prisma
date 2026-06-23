@@ -18,10 +18,10 @@ enum Category {
 }
 
 enum Urgency {
-  low
-  medium
-  high
   critical
+  high
+  medium
+  low
 }
 
 enum Disposition {
@@ -42,7 +42,7 @@ enum CaseStatus {
 model Student {
   id          String @id @default(cuid())
   name        String
-  email       String
+  email       String @unique
   university  String
   course      String
   yearOfStudy String

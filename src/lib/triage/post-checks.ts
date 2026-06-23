@@ -14,7 +14,7 @@ export function applyPostChecks(
   const out: TriageResponse = { ...result };
   const overrideReasons: string[] = [];
 
-  // ── Rule 1: Visa flag → force escalate 
+  // Rule 1: Visa flag → force escalate 
   if (flags.possibleVisa && out.disposition !== "escalate") {
     out.disposition = "escalate";
     overrideReasons.push("visa_force_escalate");

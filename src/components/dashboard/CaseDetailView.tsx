@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,108 +20,47 @@ import {
   User,
   Settings,
   HelpCircle,
-  Activity
+  Activity,
 } from "lucide-react";
-import type { CaseStatus, Urgency, Category, Disposition } from "@/types/triage";
-
-interface CaseDetail {
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-  studentName: string;
-  studentEmail: string;
-  university: string;
-  course: string;
-  yearOfStudy: string;
-  message: string;
-  category: Category;
-  urgency: Urgency;
-  disposition: Disposition;
-  safeguardingFlag: boolean;
-  emergencySupport: boolean;
-  reasoning: string;
-  studentReply: string | null;
-  staffSummary: string | null;
-  clarifyingQuestion: string | null;
-  resourcesUsed: string[];
-  modelUsed: string;
-  preCheckTriggered: boolean;
-  postCheckApplied: boolean;
-  overrideReasons: string[];
-  aiCallSucceeded: boolean;
-  rawLlmResponse: any;
-  status: CaseStatus;
-  assignedTo: string | null;
-  staffNotes: string | null;
-  resolvedAt: string | null;
-}
+import { useCaseDetail, useUpdateCase } from "@/lib/query";
+import type { CaseStatus } from "@/types/triage";
 
 export function CaseDetailView({ id }: { id: string }) {
-  const router = useRouter();
-  const [item, setItem] = useState<CaseDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // TanStack Query 
+  const {
+    data: item,
+    isLoading,
+    isError,
+    error,
+  } = useCaseDetail(id);
 
-  // Form states
+  const updateCase = useUpdateCase(id);
+
+  //  Local form state (mirrors server data after load) 
   const [status, setStatus] = useState<CaseStatus>("new");
   const [assignedTo, setAssignedTo] = useState("");
   const [staffNotes, setStaffNotes] = useState("");
 
+  // Sync local form when server data first arrives (or updates)
   useEffect(() => {
-    const fetchCase = async () => {
-      try {
-        const res = await fetch(`/api/cases/${id}`);
-        if (!res.ok) {
-          throw new Error("Failed to load case detail.");
-        }
-        const data = await res.json();
-        setItem(data);
-        setStatus(data.status);
-        setAssignedTo(data.assignedTo || "");
-        setStaffNotes(data.staffNotes || "");
-      } catch (err: any) {
-        setError(err.message || "Failed to retrieve case details.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCase();
-  }, [id]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/cases/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          status,
-          assignedTo: assignedTo.trim() || null,
-          staffNotes: staffNotes.trim() || null,
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error || "Failed to update case.");
-      }
-
-      const updated = await res.json();
-      setItem(updated);
-      router.refresh();
-    } catch (err: any) {
-      setError(err.message || "Failed to save updates.");
-    } finally {
-      setSaving(false);
+    if (item) {
+      setStatus(item.status);
+      setAssignedTo(item.assignedTo ?? "");
+      setStaffNotes(item.staffNotes ?? "");
     }
+  }, [item]);
+
+  //  Handlers 
+  const handleSave = () => {
+    updateCase.mutate({
+      status,
+      assignedTo: assignedTo.trim() || null,
+      staffNotes: staffNotes.trim() || null,
+    });
   };
 
-  if (loading) {
+  //  Loading state 
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-32 gap-3">
         <Loader2 className="size-8 text-emerald-500 animate-spin" />
@@ -131,14 +69,17 @@ export function CaseDetailView({ id }: { id: string }) {
     );
   }
 
-  if (error || !item) {
+  // Error state 
+  if (isError || !item) {
     return (
       <div className="max-w-xl mx-auto py-16 text-center space-y-4">
         <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center">
           <AlertOctagon className="size-6" />
         </div>
         <h3 className="text-lg font-bold">Error loading case</h3>
-        <p className="text-sm text-zinc-500">{error || "Case details not found."}</p>
+        <p className="text-sm text-zinc-500">
+          {error instanceof Error ? error.message : "Case details not found."}
+        </p>
         <Link href="/dashboard">
           <Button variant="outline" className="cursor-pointer mt-4">
             <ArrowLeft className="size-4 mr-1.5" /> Return to Queue
@@ -159,8 +100,8 @@ export function CaseDetailView({ id }: { id: string }) {
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-zinc-400 font-mono">Case ID: {item.id}</span>
-          <Badge variant={item.disposition}>{item.disposition}</Badge>
-          <Badge variant={item.urgency}>{item.urgency}</Badge>
+          <Badge variant={item.disposition as any}>{item.disposition}</Badge>
+          <Badge variant={item.urgency as any}>{item.urgency}</Badge>
           {item.safeguardingFlag && <Badge variant="critical">safeguarding</Badge>}
           {item.emergencySupport && <Badge variant="critical">emergency</Badge>}
         </div>
@@ -310,29 +251,19 @@ export function CaseDetailView({ id }: { id: string }) {
                 </div>
                 <div className="space-y-1">
                   <span className="text-zinc-400 dark:text-zinc-500 uppercase block text-[10px]">Pre-Check Triggered</span>
-                  <span className={`inline-flex items-center gap-1 ${
-                    item.preCheckTriggered ? "text-rose-600 dark:text-rose-400" : "text-zinc-500"
-                  }`}>
+                  <span className={`inline-flex items-center gap-1 ${item.preCheckTriggered ? "text-rose-600 dark:text-rose-400" : "text-zinc-500"}`}>
                     {item.preCheckTriggered ? (
-                      <>
-                        <ShieldAlert className="size-3.5" /> Yes (Short-Circuit)
-                      </>
+                      <><ShieldAlert className="size-3.5" /> Yes (Short-Circuit)</>
                     ) : (
-                      <>
-                        <ShieldCheck className="size-3.5 text-emerald-500" /> No
-                      </>
+                      <><ShieldCheck className="size-3.5 text-emerald-500" /> No</>
                     )}
                   </span>
                 </div>
                 <div className="space-y-1">
                   <span className="text-zinc-400 dark:text-zinc-500 uppercase block text-[10px]">Post-Check Override</span>
-                  <span className={`inline-flex items-center gap-1 ${
-                    item.postCheckApplied ? "text-amber-600 dark:text-amber-400" : "text-zinc-500"
-                  }`}>
+                  <span className={`inline-flex items-center gap-1 ${item.postCheckApplied ? "text-amber-600 dark:text-amber-400" : "text-zinc-500"}`}>
                     {item.postCheckApplied ? (
-                      <>
-                        <ShieldAlert className="size-3.5 text-amber-500" /> Yes (Enforced Overrides)
-                      </>
+                      <><ShieldAlert className="size-3.5 text-amber-500" /> Yes (Enforced Overrides)</>
                     ) : (
                       "No (AI output trusted)"
                     )}
@@ -367,6 +298,23 @@ export function CaseDetailView({ id }: { id: string }) {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+
+              {/* Mutation error banner */}
+              {updateCase.isError && (
+                <div className="text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 p-3 rounded-lg flex items-center gap-1.5">
+                  <AlertOctagon className="size-3.5 shrink-0" />
+                  {updateCase.error instanceof Error ? updateCase.error.message : "Failed to save updates."}
+                </div>
+              )}
+
+              {/* Mutation success banner */}
+              {updateCase.isSuccess && (
+                <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 p-3 rounded-lg flex items-center gap-1.5">
+                  <CheckCircle className="size-3.5 shrink-0" />
+                  Case updated successfully.
+                </div>
+              )}
+
               {/* Status */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -422,17 +370,13 @@ export function CaseDetailView({ id }: { id: string }) {
             <CardFooter className="border-t border-zinc-100 dark:border-zinc-800 p-4 bg-zinc-50/50 dark:bg-zinc-900/10">
               <Button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={updateCase.isPending}
                 className="w-full h-10 font-bold bg-emerald-600 dark:bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-colors"
               >
-                {saving ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Saving updates...
-                  </>
+                {updateCase.isPending ? (
+                  <><Loader2 className="size-4 animate-spin" /> Saving updates...</>
                 ) : (
-                  <>
-                    <Save className="size-4" /> Save Case Updates
-                  </>
+                  <><Save className="size-4" /> Save Case Updates</>
                 )}
               </Button>
             </CardFooter>
