@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Enums 
+
+enum Category {
+  academic
+  financial
+  visa_immigration
+  housing
+  health_wellbeing
+  other
+}
+
+enum Urgency {
+  low
+  medium
+  high
+  critical
+}
+
+enum Disposition {
+  handle_now
+  clarify
+  escalate
+  discard
+}
+
+enum CaseStatus {
+  new
+  in_progress
+  resolved
+}
+
+//  Models 
+
+model Student {
+  id          String @id @default(cuid())
+  name        String
+  email       String
+  university  String
+  course      String
+  yearOfStudy String
+
+  cases Case[]
+
+  @@index([email])
+}
+
+model Case {
+  id String @id @default(cuid())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  message String @db.Text
+
+  status     CaseStatus @default(new)
+  assignedTo String?
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  triage TriageResult?
+  notes  StaffNote[]
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model TriageResult {
+  id String @id @default(cuid())
+
+  caseId String @unique
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  category    Category
+  urgency     Urgency
+  disposition Disposition
+
+  safeguardingFlag Boolean
+  emergencySupport Boolean
+
+  reasoning          String  @db.Text
+  studentReply       String? @db.Text
+  staffSummary       String? @db.Text
+  clarifyingQuestion String? @db.Text
+
+  resourcesUsed String[]
+
+  modelUsed       String
+  aiCallSucceeded Boolean
+
+  preCheckTriggered Boolean
+  postCheckApplied  Boolean
+
+  overrideReasons String[]
+
+  rawLlmResponse Json
+
+  @@index([urgency])
+  @@index([safeguardingFlag])
+  @@index([disposition])
+}
+
+model StaffNote {
+  id     String @id @default(cuid())
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  note      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+}
