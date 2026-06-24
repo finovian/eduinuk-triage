@@ -11,7 +11,7 @@ Live: https://eduinuk-triage.vercel.app
 **Requirements:** Node.js 18+, a PostgreSQL database (Neon or Supabase free tier works), an OpenAI-compatible API key.
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/finovian/eduinuk-triage
 cd eduinuk-triage
 npm install
 ```
