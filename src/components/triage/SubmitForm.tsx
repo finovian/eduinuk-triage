@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Send, AlertCircle, HelpCircle, UserCheck } from "lucide-react";
+import { renderWithLinks } from "@/lib/renderWithLinks";
 
 export function SubmitForm() {
   const [loading, setLoading] = useState(false);
@@ -293,7 +294,7 @@ export function SubmitForm() {
                       Message for Student
                     </h5>
                     <div className="p-4 bg-emerald-500/5 dark:bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/10 rounded-xl text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 whitespace-pre-line shadow-2xs">
-                      {result.studentReply}
+                      {renderWithLinks(result.studentReply)}
                     </div>
                   </div>
                 )}
