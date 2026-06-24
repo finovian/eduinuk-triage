@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { renderWithLinks } from "@/lib/renderWithLinks";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -197,7 +198,7 @@ export function CaseDetailView({ id }: { id: string }) {
                     Generated Reply (Sent or Signposted)
                   </span>
                   <div className="p-4 bg-emerald-500/5 dark:bg-emerald-950/10 border border-emerald-500/20 dark:border-emerald-900/30 rounded-xl text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 whitespace-pre-line">
-                    {item.studentReply}
+                    {renderWithLinks(item.studentReply)}
                   </div>
                 </div>
               )}
