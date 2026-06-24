@@ -1,26 +1,4 @@
-/**
- * Triage service orchestrator.
-
- * Pipeline:
- *  1. Pre-checks (pure TS, no AI)
- *     └─ Immediate danger → short-circuit, return hardcoded safe response
- *     └─ Visa / injection → set flags, continue
- *  2. AI call (callAI)
- *     └─ Any failure → buildAiFailureResult() — persist and escalate gracefully
- *  3. Parse + Zod-validate AI output
- *     └─ Parse failure → buildAiFailureResult()
- *  4. Post-check overrides (final authority)
- *  5. Persist to DB
- 
- * The service owns the transaction: if DB persistence fails, an error is
- * thrown and the caller returns a 500. We never return AI output without
- * persisting it (prevents ghost cases).
- 
- * The reasoning field is captured for audit but NEVER included in the
- * return value visible to the client.
- */
-
-import { runPreChecks, buildImmediateDangerResponse } from "./pre-checks";
+import { runPreChecks, buildImmediateDangerResponse, buildInjectionResponse } from "./pre-checks";
 import { callAI, AiCallError } from "./ai";
 import { applyPostChecks } from "./post-checks";
 import { TriageResponseSchema } from "./schema";
@@ -64,10 +42,17 @@ export async function runTriage(
   let aiCallSucceeded = false;
 
   if (preCheck.shortCircuit) {
-    // Immediate danger — bypass AI entirely
     preCheckTriggered = true;
-    const hardcoded = buildImmediateDangerResponse(request.name);
-    // Run post-checks even on hardcoded responses for consistency
+
+    let hardcoded;
+    if (preCheck.reason === "immediate_danger") {
+      hardcoded = buildImmediateDangerResponse(request.name);
+    } else if (preCheck.reason === "prompt_injection") {
+      hardcoded = buildInjectionResponse();
+    } else {
+      hardcoded = buildImmediateDangerResponse(request.name);
+    }
+
     const zeroFlags: PreCheckFlags = {
       possibleVisa: false,
       possibleInjection: false,
@@ -81,7 +66,7 @@ export async function runTriage(
 
     try {
       rawResponse = await callAI(request);
-
+      console.log('rawResponse', rawResponse)
       aiCallSucceeded = true;
     } catch (err) {
       const reason =
@@ -130,6 +115,7 @@ export async function runTriage(
 
     // Step 4: Post-checks (final authority) 
     postChecked = applyPostChecks(parsed.data, preCheck.flags);
+    console.log('postChecked2', postChecked)
 
     // Persist to DB
     const caseRecord = await persistCase(request, postChecked, {

@@ -39,6 +39,7 @@ export interface PreCheckFlags {
 
 export type PreCheckResult =
   | { shortCircuit: true; reason: "immediate_danger" }
+  | { shortCircuit: true; reason: "prompt_injection" }
   | { shortCircuit: false; flags: PreCheckFlags };
 
 // Post-check 
