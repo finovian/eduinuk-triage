@@ -1,11 +1,5 @@
 import type { TriageResponse, PostCheckResult, PreCheckFlags } from "@/types/triage";
 
-const EMERGENCY_PREFIX =
-  "⚠️ If you or someone else is in immediate danger, please call 999 now. " +
-  "The Samaritans are available 24/7 on 116 123 — free and confidential.\n\n";
-
-// Post-check runner 
-
 export function applyPostChecks(
   result: TriageResponse,
   flags: PreCheckFlags
