@@ -34,11 +34,20 @@ export function applyPostChecks(
 
 
   if (
-    (out.urgency === "critical" || out.urgency === "high") &&
+    out.urgency === "critical" &&
     out.disposition === "handle_now"
   ) {
     out.disposition = "escalate";
-    overrideReasons.push("high_critical_no_handle_now");
+    overrideReasons.push("critical_no_handle_now");
+  }
+
+  if (
+    out.urgency === "high" &&
+    out.disposition === "handle_now" &&
+    out.safeguarding_flag
+  ) {
+    out.disposition = "escalate";
+    overrideReasons.push("high_safeguarding_no_handle_now");
   }
 
   if (
