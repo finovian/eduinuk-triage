@@ -33,9 +33,26 @@ export function applyPostChecks(
   }
 
 
-  if (out.urgency === "critical" && out.disposition === "handle_now") {
+  if (
+    (out.urgency === "critical" || out.urgency === "high") &&
+    out.disposition === "handle_now"
+  ) {
     out.disposition = "escalate";
-    overrideReasons.push("critical_no_handle_now");
+    overrideReasons.push("high_critical_no_handle_now");
+  }
+
+  if (
+    out.safeguarding_flag &&
+    (out.urgency === "high" || out.urgency === "critical") &&
+    !out.emergency_support
+  ) {
+    out.emergency_support = true;
+    overrideReasons.push("safeguarding_high_force_emergency");
+  }
+
+  if (out.safeguarding_flag && out.emergency_support && out.urgency !== "critical") {
+    out.urgency = "critical";
+    overrideReasons.push("safeguarding_emergency_force_critical");
   }
 
 
@@ -64,7 +81,10 @@ export function applyPostChecks(
       reply.includes("116 123") || reply.includes("116123");
 
     if (!has999 || !hasSamaritans) {
-      out.student_reply = EMERGENCY_PREFIX + reply;
+      out.student_reply =
+        "⚠️ If you or someone else is in immediate danger, please call 999 now. " +
+        "The Samaritans are available 24/7 on 116 123, free and confidential. " +
+        "A member of our support team will be in touch with you as soon as possible.";
       overrideReasons.push("emergency_numbers_injected");
     }
   }
